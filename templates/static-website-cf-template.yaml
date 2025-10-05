@@ -1,0 +1,56 @@
+Parameters: 
+  DomainName:
+    Type: String 
+    Description: 'Domain name'
+    Default: example.com
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: example.com
+      AccessControl: PublicRead
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+  MyCloudFront:
+    Type: AWS::CloudFront::Distribution
+    Properties: 
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        DefaultCacheBehavior: 
+          TargetOriginId: "example.com"
+          ViewerProtocolPolicy: "redirect-to-https"
+          AllowedMethods: [GET, HEAD]
+          CachedMethods: [GET, HEAD]
+          ForwardedValues:
+            QueryString: false
+        Origins:
+           - Id: "example.com"
+             DomainName: !GetAtt MyS3Bucket.DomainName #S3 bucket endpoint
+        ViewerCertificate:
+          AcmCertificateArn: !Ref MyACM
+          SslSupportMethod: sni-only   
+
+  MyACM:
+    Type: AWS::CertificateManager::Certificate 
+    Properties: 
+      DomainValidationOptions: 
+        - DomainName: !Ref DomainName
+          HostedZoneId: !Ref MyRoute53HostedZone
+       
+  MyRoute53HostedZone:
+    Type: AWS::Route53::HostedZone
+    Properties:
+      Name: example.com
+  
+  MyRoute53RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties: 
+      Name: example.com
+      Type: A
+      AliasTarget: 
+        DNSName: !GetAtt MyCloudFront.DomainName # CloudFront DNS name
+        HostedZoneId: Z2FDTNDATAQYW2 # Global Hosted Zone ID 
